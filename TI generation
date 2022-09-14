@@ -1,0 +1,49 @@
+var image3 = ee.Image("MERIT/Hydro/v1_0_1"),
+    MOD13A2 = ee.ImageCollection("MODIS/006/MOD13A2"),
+    TIele1000 = ee.Image("users/qianrswaterr/GlobalSSM/TIele1000resample"),
+    table4 = ee.FeatureCollection("users/qianrswaterr/globalBoundary/world");
+///////reduceResolution, aggregate
+var modis = MOD13A2.first().reproject("EPSG:4326",null,1000)
+// Get information about the MODIS projection.
+var modisProjection = modis.projection();
+print('MODIS projection:', modisProjection);
+
+////////////CA:CatchmentArea
+var elevation=image3.select('elv').rename("elevation");
+var scale = elevation.projection().nominalScale()
+var catchmentArea=image3.select('upa').multiply(1000000)//.reproject("EPSG:4326",null,scale);
+var flowDirection=image3.select('dir')//.reproject("EPSG:4326",null,scale);
+var flowWidth=flowDirection.where(flowDirection.eq(1).or(flowDirection.eq(4)).or(flowDirection.eq(16)).or(flowDirection.eq(64)),90)
+flowWidth=flowWidth.where(flowDirection.eq(2).or(flowDirection.eq(8)).or(flowDirection.eq(32)).or(flowDirection.eq(128)),ee.Number(90).sqrt())
+var SCA=catchmentArea.divide(flowWidth)//.reproject("EPSG:4326",null,scale);
+var slope=ee.Terrain.slope(elevation)//.reproject("EPSG:4326",null,scale);
+slope=slope.multiply(ee.Number(3.141592654)).divide(180)//.reproject("EPSG:4326",null,scale)
+/////calculate Topographic Index
+Map.addLayer(elevation,{min:0,max:25},'ele92')
+var TI=(SCA.divide(slope.tan())).log().rename("TI")//.reproject("EPSG:4326",null,scale);
+Map.addLayer(TI,{min:0,max:25},'TI92')
+print(TI.projection().nominalScale())
+var TIele = TI.addBands(elevation)//.reproject("EPSG:4326",null,scale)
+var resample = function(image) {
+  return image.resample('bilinear')
+              .reproject({
+                    crs: modisProjection,
+                    scale: 1000})
+};
+TIele = resample(TIele)
+
+Map.addLayer(TIele.select("elevation"),{min:0,max:25},'ele1000')
+Map.addLayer(TIele.select("TI"),{min:0,max:25},'TI1000')
+Map.addLayer(TIele1000.select("elevation"),{min:0,max:4000},'ele1000 asset');
+Map.addLayer(TIele1000.select("TI").reproject("EPSG:4326",null,1000),{min:0,max:25},'TI1000 asset');
+
+Export.image.toAsset({
+          image: TIele,
+          description: "TIele1000resample0709",
+          scale: 1000,
+          region: table4.geometry().bounds(),
+          crs:"EPSG:4326",
+          assetId:'GlobalSSM/TIele1000resample0709',
+          pyramidingPolicy: {'.default': 'sample'},
+          maxPixels: 10000000000000
+      });
