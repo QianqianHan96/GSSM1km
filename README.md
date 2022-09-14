@@ -3,7 +3,7 @@ Global Surface Soil Moisture (GSSM1km) is a global surface soil moisture (0-5 cm
 
 To reproduce GSSM1km using the code files in this repository. Code files are as follows:
 (1) TI generation is used for getting Topographic Index, but this data is public already.
-(2) GSSM1km generation is the most important code file, which include the whole process of how to preprocess the predictors and train the model. The code GSSM1km generation is for Europe, you can change the variable EuropeBoundary in line 13 to run other places.
+(2) GSSM1km generation is the most important code file, which include the whole process of how to preprocess the predictors and train the model. The code GSSM1km generation is for Europe, you can change the variable EuropeBoundary in line 15 to run other places.
 (3) For the continuous LST in other places, you need to run the codes from Shiff to fill in the gaps (https://github.com/shilosh/ContinuousLST)
 Shiff, S., Helman, D. & Lensky, I. M. Worldwide continuous gap-filled MODIS land surface temperature dataset. Scientific Data 8, 1-10 (2021).
 
