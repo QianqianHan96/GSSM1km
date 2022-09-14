@@ -8,7 +8,6 @@ var MERIT = ee.Image("MERIT/Hydro/v1_0_1"),
     NLsamples = ee.FeatureCollection("users/qianrswaterr/NLsamples/trainTestNL2022-0509coor"),
     table = ee.FeatureCollection("users/qianrswaterr/globalBoundary/World_Continents"),
     TIele = ee.Image("users/qianrswaterr/GlobalSSM/TIele1000resample0709");
-
 var WTD = imageCollection.mosaic().reproject("EPSG:4326",null,1000).rename('WTD'); 
 DTB = DTB.reproject("EPSG:4326",null,1000).rename('DTB')
 var continent = 'Asia4_'
@@ -528,4 +527,3 @@ Export.image.toAsset({
 Map.addLayer(EuropeBoundary,{},"EuropeBoundary")
 Map.addLayer(ee.Feature(EuropeBoundary.first()).bounds(),{},"EuropeBoundary")
 print(ee.Feature(EuropeBoundary.first()).bounds())
-
