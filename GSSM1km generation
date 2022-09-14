@@ -1,26 +1,28 @@
 var MERIT = ee.Image("MERIT/Hydro/v1_0_1"),
     MOD13A2 = ee.ImageCollection("MODIS/006/MOD13A2"),
+    table = ee.FeatureCollection("users/qianrswaterr/globalBoundary/World_Continents"),
     ERA5Land = ee.ImageCollection("ECMWF/ERA5_LAND/HOURLY"),
     imageCollection = ee.ImageCollection("users/qianrswaterr/WTD"),
     DTB = ee.Image("users/qianrswaterr/predictors/BDTICM_M_1km_ll"),
     trainTest = ee.FeatureCollection("users/qianrswaterr/GlobalSSM2022/trainTestFinal2022-0509coor"),
     valiEva = ee.FeatureCollection("users/qianrswaterr/GlobalSSM2022/valiEvaFinal2022-0509coor"),
     NLsamples = ee.FeatureCollection("users/qianrswaterr/NLsamples/trainTestNL2022-0509coor"),
-    table = ee.FeatureCollection("users/qianrswaterr/globalBoundary/World_Continents"),
     TIele = ee.Image("users/qianrswaterr/GlobalSSM/TIele1000resample0709");
+
+
 var WTD = imageCollection.mosaic().reproject("EPSG:4326",null,1000).rename('WTD'); 
 DTB = DTB.reproject("EPSG:4326",null,1000).rename('DTB')
-var continent = 'Asia4_'
-var EuropeBoundary=ee.FeatureCollection("users/qianrswaterAmerica/Asia4");
+var EuropeBoundary=table.filterMetadata("CONTINENT","equals","Europe");
 ///////////////NDVI & EVI
 var modis = MOD13A2
 var oeel=require('users/OEEL/lib:loadAll');
-var firstYear = 2017
+var firstYear = 2019
 var firstDaymodis = ee.String(ee.Number(firstYear).subtract(1)).cat('-12-13');
 var lastDaymodis = ee.String(ee.Number(firstYear).add(1)).cat('-01-18');
 // 26 images in the current year
 modis=modis.filterDate(firstDaymodis,lastDaymodis).select(["NDVI","EVI"]);
 print("originalMODIS",modis);
+Map.addLayer(modis.select(["NDVI","EVI"]),{},"original NDVI&EVI")
 // SG filter
 var s=oeel.ImageCollection.SavatskyGolayFilter(modis,
         ee.Filter.maxDifference(1000*3600*24*48, 'system:time_start', null, 'system:time_start'),
@@ -32,18 +34,11 @@ var s=oeel.ImageCollection.SavatskyGolayFilter(modis,
 
 ///////////////////////////Linear interpolation
 ////24 images, filter 12/19(or 12/18) and 1/17 which have masked values
-// s=s.filterDate(ee.String(ee.Number(firstYear)).cat('-01-01'),ee.String(ee.Number(firstYear).add(1)).cat('-01-02'))
-// .select(["d_0_NDVI","d_0_EVI"])
-// .map(function(img){
-//     return img//.unmask(0)
-//   })
-s=ee.ImageCollection(ee.Algorithms.If(ee.Number(firstYear).eq(2000),ee.ImageCollection(s.toList(26).slice(0,21)),ee.ImageCollection(s.toList(26).slice(1,25))))
-// s=ee.ImageCollection(s.toList(26).slice(1,25))
-.select(["d_0_NDVI","d_0_EVI"])
+s=ee.ImageCollection(s.toList(26).slice(1,25)).select(["d_0_NDVI","d_0_EVI"])
   .map(function(img){
     return img//.unmask(0)
   })
-print('SG NDVI & EVI only in the current year',s)
+//print('SG NDVI & EVI only in the current year',s)
 //Map.addLayer(s.select(["d_0_NDVI","d_0_EVI"]),{},'SG NDVI&EVI')
 // Yr start date 
 var ddStart = ee.Number(s.aggregate_min('system:time_start'));
@@ -76,14 +71,12 @@ var day = (24*60*60*1000);
 var timeDelta = (16*day);
 // when 12/19, it is 13 days
 // when 12/18, it is 14 days
-//var timeDelta1= (13*day);
-var timeDelta1= ee.Number(ee.Algorithms.If(ee.Number(firstYear).mod(4).eq(0),(14*day),(13*day)));
-// print(timeDelta1)
+var timeDelta1= (13*day);
 // Create a list of original calculated dates
 var startDayList = s.toList(24).map(function(ele){
   ele=ee.Image(ele)
   return ele.get("system:time_start")
-}).slice(0,ee.Algorithms.If(ee.Number(firstYear).eq(2000),20,23))//
+}).slice(0,23)
 // convert it in an image collection
 function toImage(tuple){
   return ee.Image.constant(ee.Number(tuple)).set('system:time_start',tuple);
@@ -181,6 +174,7 @@ var sgliNDVICollection =  ee.ImageCollection(imgCll.map(NDVIinterpolator).flatte
 
 var NDVI=sgliNDVICollection;
 print("NDVI",NDVI)
+Map.addLayer(NDVI,{},"NDVI")
 
 //apply the interpolation function to NDVI
 var sgliEVICollection =  ee.ImageCollection(imgCll.map(EVIinterpolator).flatten().toList(3000)).map(function(img){
@@ -188,6 +182,7 @@ var sgliEVICollection =  ee.ImageCollection(imgCll.map(EVIinterpolator).flatten(
 });
 var EVI=sgliEVICollection;
 print("EVI",EVI)
+Map.addLayer(EVI,{},"EVI")
 /////////////////////////**********************************
 
 
@@ -209,6 +204,7 @@ var ERA5LandPre = ERA5Land.filterDate(firstDayPreci,lastDayExtra1).map(function(
            .filterMetadata("hour","equals",00)
 print("ERA5LandPre",ERA5LandPre)
 print("ERA5LandPresize",ERA5LandPre.size())
+Map.addLayer(ERA5LandPre,{min:0,max:0.05},'ERA5LandPre')
 ERA5LandPre = ERA5LandPre.map(function(img){
   return img.select("total_precipitation").add(img.select('total_evaporation'))
          .set("system:time_start",ee.Number(img.get("system:time_start")))
@@ -258,6 +254,7 @@ apiLandCollection=ee.ImageCollection(apiLandCollection
                   .filterMetadata("system:index","not_less_than",ee.String(ee.Number(firstYear)).cat("0102T00")))
 print('APILand',apiLandCollection);
 var APILand = apiLandCollection
+Map.addLayer(APILand.toBands(),{min:0,max:0.04},"APILand")
 /////////////////////*****************************
 //air temperature
 var preImgCol = ERA5Land.filterDate(firstDay.cat("T01"),lastDay.cat("T01")).select("temperature_2m").map(function(col){
@@ -271,7 +268,7 @@ var preImgCol = ERA5Land.filterDate(firstDay.cat("T01"),lastDay.cat("T01")).sele
 })
 print(preImgCol.size())
 print("preImgCol Tair",ee.ImageCollection(preImgCol.toList(8784).slice(8000,8784)))
-// //使用join将影像集合合并为每日数据 
+// //merge data from hourly into daily with join function
 var join = ee.Join.saveAll("matches");
 var filter = ee.Filter.equals({ 
   leftField: "date", 
@@ -282,7 +279,7 @@ print("joinImgs",joinImgs.first())
 var TairCollection = joinImgs.map(function(image) { 
   var _imgList = ee.List(image.get("matches")); 
   var _tempCol = ee.ImageCollection.fromImages(_imgList); 
-  //由于是hourly so we need to calculate the average of everyday
+  //due to it is hourly, so we need to calculate the average of everyday
   //Temperature measured in kelvin can be converted to degrees Celsius (°C) by subtracting 273.15.
   var _dayImg = _tempCol.mean().subtract(273.15); 
   var _date = image.get("date"); 
@@ -292,6 +289,7 @@ var TairCollection = joinImgs.map(function(image) {
 }); 
 TairCollection = ee.ImageCollection(TairCollection)
 print("TairCollection",TairCollection)
+Map.addLayer(ee.ImageCollection(TairCollection),{min:0,max:0.05},'TairCollection')
 ////evaporation
 var evapoCollection = ERA5Land.filterDate(firstDay,lastDayExtra1)
                 .map(function(img){
@@ -306,10 +304,9 @@ print("evapoCollection",evapoCollection)
 
 ///////////////////////////***********************************
 //LST
-// qianrswaterAmerica 
-var LST=ee.ImageCollection("users/qianrswaterAmerica/LSTAsia4MOD11A1")
-var dayLSTfilter = ee.String("MODIS_LST_Blended_Day_Asia4").cat(ee.String(ee.Number(firstYear)))
-var nightLSTfilter = ee.String("MODIS_LST_Blended_Night_Asia4").cat(ee.String(ee.Number(firstYear)))
+var LST=ee.ImageCollection("users/qianrswaterAmerica/LSTEuropeMOD11A1")
+var dayLSTfilter = ee.String("MODIS_LST_Blended_Day_Europe").cat(ee.String(ee.Number(firstYear)))
+var nightLSTfilter = ee.String("MODIS_LST_Blended_Night_Europe").cat(ee.String(ee.Number(firstYear)))
 var dayLST = LST.filterMetadata("system:index","equals",dayLSTfilter).first().divide(100);
 var nightLST = LST.filterMetadata("system:index","equals",nightLSTfilter).first().divide(100);
 print("dayLST",dayLST)
@@ -350,6 +347,7 @@ var dailyLST=ee.ImageCollection(bandNamesdailyLST.map(function(BandNameElement){
 .set("system:index",stryearBegin)
 }))
 print("dailyLST",dailyLST)
+Map.addLayer(dailyLST,{},"dailyLST")
 ////dailyLSTDiff
 var bandNamesdailyLSTDiff=dailyLSTDiff0.bandNames();
 var dailyLSTDiff=ee.ImageCollection(bandNamesdailyLSTDiff.map(function(BandNameElement){
@@ -367,6 +365,7 @@ var dailyLSTDiff=ee.ImageCollection(bandNamesdailyLSTDiff.map(function(BandNameE
 .set("system:index",stryearBegin)
 }))
 print("dailyLSTDiff",dailyLSTDiff)
+Map.addLayer(dailyLSTDiff,{},"dailyLSTDiff")
 ////////////////////////////////////////
 ///////////////
 var modis = MOD13A2.first().reproject("EPSG:4326",null,1000)
@@ -395,6 +394,7 @@ var soc = ee.Image("projects/soilgrids-isric/soc_mean");
 var omc = soc.select("soc_0-5cm_mean").multiply(0.01).multiply(1.724).reproject("EPSG:4326",null,250).rename("omc")
 
 var soilProper = clayFraction.addBands(sandFraction).addBands(siltFraction).addBands(porosity).addBands(omc)
+Map.addLayer(soilProper,{min:0,max:100},"soilProper250")
 var resample = function(image) {
   return image.resample('bilinear')
               .reproject({
@@ -402,6 +402,7 @@ var resample = function(image) {
                     scale: 1000})
 };
 soilProper = resample(soilProper)
+Map.addLayer(soilProper,{min:0,max:100},"soilProper1000")
 ////////////////////////
 var longitude = ee.Image.pixelLonLat().select("longitude").reproject("EPSG:4326",null,1000).rename("lon")
 //Map.addLayer(longitude,{},"longitude")
@@ -411,9 +412,7 @@ var elevation=TIele.select("elevation").reproject("EPSG:4326",null,1000)
 var TI=TIele.select("TI").reproject("EPSG:4326",null,1000)
 
 ////////////////////////combine all predictors
-dailyLST = ee.Algorithms.If(ee.Number(firstYear).eq(2000),dailyLST.filterDate('2000-03-05','2001-01-01'),dailyLST)
-print("dailyLST",dailyLST)
-var predictors=ee.ImageCollection(dailyLST).map(function(img){
+var predictors=dailyLST.map(function(img){
   var time=img.get("system:time_start")
   var dailyLSTDiff1=dailyLSTDiff.filterMetadata("system:time_start","equals",time).first().rename("LST_Diff")
   var NDVI1=NDVI.filterMetadata("system:time_start","equals",time).first().rename("NDVI_SG_linear").divide(10000)
@@ -436,6 +435,7 @@ var predictors=ee.ImageCollection(dailyLST).map(function(img){
   return img.clip(EuropeBoundary).reproject("EPSG:4326",null,1000)
 })
 print("predictors",predictors.first())
+Map.addLayer(predictors.first(),{},"predictors",false)
 
 ////////////
 print("/////   training /////////////////////")
@@ -472,7 +472,7 @@ var split = 0.75;  // Roughly 75% training, 25% testing.
 var training = sample.filter(ee.Filter.lt('random', split));
 print('trainingSize',training.size())
 var testing = sample.filter(ee.Filter.gte('random', split));
-print('testingSize',testing.size())
+//print('testingSize',testing.size())
 // Make a Random Forest classifier and train it
 var classifier = ee.Classifier.smileRandomForest({
   numberOfTrees:20,
@@ -513,17 +513,15 @@ function batchRename(image){
   return image.rename(rename);
 }
 SM=batchRename(SM.toBands())
-print(EuropeBoundary)
+
 Export.image.toAsset({
           image: SM,
-          description:ee.String("SM").cat(ee.String(ee.Number(firstYear))).cat(continent.replace(' ','','g')).cat("1km").getInfo(),
+          description:ee.String("SM").cat(ee.String(ee.Number(firstYear))).cat("Europe1km").getInfo(),
           scale: 1000,
-          region: EuropeBoundary.geometry().bounds(200,'EPSG:4326'),
+          region: EuropeBoundary,
           crs:"EPSG:4326",
-          assetId:ee.String("GlobalSSM1km0509/SM").cat(ee.String(ee.Number(firstYear))).cat(continent.replace(' ','','g')).cat("1km").getInfo(),
+          assetId:ee.String("GlobalSSM1km0509/SM").cat(ee.String(ee.Number(firstYear))).cat("Europe1km").getInfo(),
           maxPixels: 1e13,
           pyramidingPolicy: {'.default': 'sample'}
       });
 Map.addLayer(EuropeBoundary,{},"EuropeBoundary")
-Map.addLayer(ee.Feature(EuropeBoundary.first()).bounds(),{},"EuropeBoundary")
-print(ee.Feature(EuropeBoundary.first()).bounds())
