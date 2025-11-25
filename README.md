@@ -1,4 +1,4 @@
-Ppaers codes for "Global long-term daily 1km surface soil moisture dataset with physics-informed machine learning (GSSM1km)".
+Papers codes for "Global long-term daily 1km surface soil moisture dataset with physics-informed machine learning (GSSM1km)".
 Global Surface Soil Moisture (GSSM1km) is a global surface soil moisture (0-5 cm) at 1 km spatial and daily temporal resolution over the period 2000-2020. The data is generated using a machine-learning based trained with in-situ soil moisture measurement from more than 1000 stations mostly from the International Soil Moisture Network (ISMN) website.
 
 To reproduce GSSM1km using the code files in this repository. Code files are as follows:
